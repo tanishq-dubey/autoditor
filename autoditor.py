@@ -9,18 +9,18 @@ import argparse
 import os
 import tempfile
 
+
 class Moment:
-    
     def __init__(self, start, stop):
         self.start = start
         self.stop = stop
         self.duration = 0
         if stop is not None:
             self.duration = stop - start
-    
+
     def __str__(self):
         return f"Start {self.start} \t\t Stop {self.stop} \t\t Duration {self.duration}"
-    
+
     def __repr__(self):
         return f"Start {self.start} \t\t Stop {self.stop} \t\t Duration {self.duration}"
 
@@ -28,12 +28,14 @@ class Moment:
 def process_audio(source_audio_path: str) -> Tuple[np.ndarray, int, int]:
     rate, data_raw = wav.read(source_audio_path)
     data_raw = data_raw.astype(np.int32)
-    mono = (data_raw[:,0] + data_raw[:,1])/2
+    mono = (data_raw[:, 0] + data_raw[:, 1]) / 2
     duration = len(mono) / rate
     return mono, duration, rate
 
 
-def convert_video_to_audio(source_video_path: str, destination_audio_location = None) -> str:
+def convert_video_to_audio(
+    source_video_path: str, destination_audio_location=None
+) -> str:
     tdir = tempfile.gettempdir()
     dest_location = f"{tdir}/{source_video_path}.wav"
     print(f"checking to see if {dest_location} exists")
@@ -63,7 +65,7 @@ def sub_resample(data: np.ndarray, factor: int):
 
 
 def moving_average(x, w):
-    return np.convolve(x, np.ones(w), 'valid') / w
+    return np.convolve(x, np.ones(w), "valid") / w
 
 
 def find_highlights(data, threshold, rate, factor):
@@ -78,10 +80,18 @@ def find_moving_average_highlights(short_ma, long_ma, bitrate, resample_factor):
     in_a_clip = False
     timestamps = []
     for t in range(1, len(long_ma)):
-        if not in_a_clip and (short_ma[t - 1] < long_ma[t - 1]) and (short_ma[t] > long_ma[t]):
+        if (
+            not in_a_clip
+            and (short_ma[t - 1] < long_ma[t - 1])
+            and (short_ma[t] > long_ma[t])
+        ):
             in_a_clip = True
             timestamps.append(t * resample_factor / bitrate)
-        elif in_a_clip and (short_ma[t - 1] > long_ma[t - 1]) and (short_ma[t] < long_ma[t]):
+        elif (
+            in_a_clip
+            and (short_ma[t - 1] > long_ma[t - 1])
+            and (short_ma[t] < long_ma[t])
+        ):
             in_a_clip = False
             timestamps.append(t * resample_factor / bitrate)
 
@@ -95,13 +105,12 @@ def find_moving_average_highlights(short_ma, long_ma, bitrate, resample_factor):
 
 def blockwise(t, size=2, fillvalue=None):
     it = iter(t)
-    return zip_longest(*[it]*size, fillvalue=fillvalue)
+    return zip_longest(*[it] * size, fillvalue=fillvalue)
 
 
 def plot_audio(data):
     plt.plot(list(range(len(data))), data)
     plt.show()
-
 
 
 def main(vidfilepath, outfile, res_factor, lw, sw, dry_run, minduration, maxduration):
@@ -116,40 +125,39 @@ def main(vidfilepath, outfile, res_factor, lw, sw, dry_run, minduration, maxdura
         LONG_WINDOW = lw
         SHORT_WINDOW = sw
 
-        assert(LONG_WINDOW > SHORT_WINDOW)
+        assert LONG_WINDOW > SHORT_WINDOW
 
-        long_ma  = moving_average(squared_subsample, LONG_WINDOW)
+        long_ma = moving_average(squared_subsample, LONG_WINDOW)
         short_ma = moving_average(squared_subsample, SHORT_WINDOW)
-        moments = find_moving_average_highlights(short_ma, long_ma, bitrate, RESAMPLE_FACTOR)
+        moments = find_moving_average_highlights(
+            short_ma, long_ma, bitrate, RESAMPLE_FACTOR
+        )
         total_time = 0
         for m in moments:
             if m.duration > minduration and m.duration < maxduration:
-                print(f"Start {round(m.start/60, 2)} \t\t Stop {round(m.stop/60, 2)} \t\t Duration {round(m.duration, 2)}")
+                print(
+                    f"Start {round(m.start/60, 2)} \t\t Stop {round(m.stop/60, 2)} \t\t Duration {round(m.duration, 2)}"
+                )
                 total_time = total_time + m.duration
 
-        print(total_time/60)
+        print(total_time / 60)
 
         if not dry_run:
             clips = get_subclips(videofile, moments)
             clips
             to_render = mp.concatenate_videoclips(clips)
             to_render.write_videofile(outfile)
-        os.remove(audiofile) 
+        os.remove(audiofile)
     except:
-        os.remove(audiofile) 
+        os.remove(audiofile)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog="autoditor",
-        description="autoditor is an automatic video editor."
+        prog="autoditor", description="autoditor is an automatic video editor."
     )
     parser.add_argument(
-        "-v",
-        "--video",
-        required=True,
-        metavar="Video file path",
-        dest="vpath"
+        "-v", "--video", required=True, metavar="Video file path", dest="vpath"
     )
     parser.add_argument(
         "-f",
@@ -157,7 +165,7 @@ if __name__ == "__main__":
         default=16000,
         metavar="Subsampling factor",
         dest="factor",
-        type=int
+        type=int,
     )
     parser.add_argument(
         "-l",
@@ -165,7 +173,7 @@ if __name__ == "__main__":
         default=128,
         metavar="Long moving average time",
         dest="lwindow",
-        type=int
+        type=int,
     )
     parser.add_argument(
         "-s",
@@ -173,20 +181,11 @@ if __name__ == "__main__":
         default=64,
         metavar="Short moving average time",
         dest="swindow",
-        type=int
+        type=int,
     )
+    parser.add_argument("-d", "--dryrun", dest="drun", action="store_true")
     parser.add_argument(
-        "-d",
-        "--dryrun",
-        dest="drun",
-        action="store_true"
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        required=True,
-        metavar="Output file location",
-        dest="opath"
+        "-o", "--output", required=True, metavar="Output file location", dest="opath"
     )
     parser.add_argument(
         "-i",
@@ -194,7 +193,7 @@ if __name__ == "__main__":
         default=30,
         metavar="Minimum clip duration",
         dest="mindur",
-        type=int
+        type=int,
     )
     parser.add_argument(
         "-m",
@@ -202,9 +201,18 @@ if __name__ == "__main__":
         default=100,
         metavar="Maximum clip duration",
         dest="maxdur",
-        type=int
+        type=int,
     )
 
     args = parser.parse_args()
     # def main(vidfilepath, outfile, res_factor, lw, sw, dry_run):
-    main(args.vpath, args.opath, args.factor, args.lwindow, args.swindow, args.drun, args.mindur, args.maxdur)
+    main(
+        args.vpath,
+        args.opath,
+        args.factor,
+        args.lwindow,
+        args.swindow,
+        args.drun,
+        args.mindur,
+        args.maxdur,
+    )
